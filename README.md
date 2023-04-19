@@ -1,2 +1,1 @@
-# picotoshi
-(˵ ͡° ͜ʖ ͡°˵)
+# picotoshi (҂◡_◡) ᕤ
