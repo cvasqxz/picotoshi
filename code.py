@@ -8,8 +8,6 @@ from machine import Pin
 
 from nodeutils import create_header, is_header_valid, SERVICES, create_version, parse_version, parse_invs, create_getdata
 
-stats = {"addresses": 0, "transactions": 0, "blocks": 0}
-
 led = Pin("LED", Pin.OUT)
 
 wlan = WLAN(STA_IF)
@@ -60,7 +58,6 @@ while wlan.isconnected():
         
         if msg_type == "inv":
             invs = parse_invs(msg_payload)
-            print(invs)
             getdata_payload = create_getdata(invs)
             getdata = MAGIC_NUMBER + create_header(getdata_payload, "getdata") + getdata_payload
             sock.send(getdata)
