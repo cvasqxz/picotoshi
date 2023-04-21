@@ -3,7 +3,7 @@ SSID= ''
 PASSWORD= ''
 
 # BITCOIN MAGIC NUMBER
-MAGIC_NUMBER = b'\xf9\xbe\xb4\xd9'
+MAGIC_NUMBER = const(b'\xf9\xbe\xb4\xd9')
 
 # KNOWN IP ADDRESSES FROM SIPA'S PUBLIC DNS SERVER (seed.bitcoin.sipa.be)
 KNOWN_NODES = [

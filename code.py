@@ -5,6 +5,7 @@ from time import sleep, localtime
 from network import WLAN, STA_IF
 from random import choice
 from machine import Pin
+import gc
 
 from nodeutils import create_header, is_header_valid, SERVICES, create_version, parse_version, parse_invs, create_getdata
 
@@ -21,6 +22,7 @@ while not wlan.isconnected():
     led.off()
     sleep(0.5)
     
+gc.enable()
 
 print(f"WiFi status: {wlan.isconnected()}")
 
@@ -28,7 +30,7 @@ hostport = (choice(KNOWN_NODES), 8333)
 print(f"Connecting to {hostport}")
 
 sock = socket(AF_INET, SOCK_STREAM)
-sock.settimeout(10)
+sock.settimeout(60)
 sock.connect(hostport)
 
 # VERSION MESSAGE
@@ -38,14 +40,21 @@ version = MAGIC_NUMBER + version_header + version_payload
 sock.send(version)
 
 input_msg_array = []
-buffer = b''
+inv_buffer = []
+packet_buffer = b''
 
 while wlan.isconnected():
-    data = buffer + sock.recv(1024)
-    buffer_pointer = data.rfind(MAGIC_NUMBER)
-    buffer = data[buffer_pointer:]
+    packet_received = sock.recv(1024)
+    packet_buffer += packet_received
+    buffer_pointer = packet_buffer.rfind(MAGIC_NUMBER)
     
-    for msg in data[:buffer_pointer].split(MAGIC_NUMBER):
+    if buffer_pointer <= 0:
+        continue
+    
+    complete_packets = packet_buffer[:buffer_pointer]
+    packet_buffer = packet_buffer[buffer_pointer:]
+            
+    for msg in complete_packets.split(MAGIC_NUMBER):
         if len(msg) > 0 and is_header_valid(msg):
             input_msg_array.append(msg)
     
@@ -54,27 +63,41 @@ while wlan.isconnected():
         msg_payload = msg[20:]
         
         msg_type = bytes.decode(msg[:12].strip(b"\x00"))
-        print(f"New message: {msg_type}")
+        print(f"New message: {msg_type} (buffer size: {len(packet_buffer)})")
         
         if msg_type == "inv":
-            invs = parse_invs(msg_payload)
-            getdata_payload = create_getdata(invs)
-            getdata = MAGIC_NUMBER + create_header(getdata_payload, "getdata") + getdata_payload
-            sock.send(getdata)
+            inv_buffer = parse_invs(msg_payload)
             continue
         
-        if msg_type == "ping":
+        elif msg_type == "ping":
             pong = MAGIC_NUMBER + create_header(msg_payload, "pong") + msg_payload
+            pong = b""
             sock.send(pong)
             continue
         
-        if msg_type == "version":
-            print(parse_version(msg_payload))
+        elif msg_type == "version":
+            node_version = parse_version(msg_payload)
+            print(node_version)
             
             # VERACK & FEEFILTER
             sock.send(HARDCODED_PACKETS["VERACK"])
             sock.send(HARDCODED_PACKETS["FEEFILTER"])
             continue
+        
+
+    if len(inv_buffer) > 0:
+        led.on()
+        
+        inv = inv_buffer.pop()
+        getdata_payload = create_getdata(inv)
+        getdata = MAGIC_NUMBER + create_header(getdata_payload, "getdata") + getdata_payload
+        sock.send(getdata)
+        
+        # GARBAGE COLLECTOR
+        gc.collect()
+        
+        led.off()
+        continue
         
 sock.close()
 wlan.disconnect()

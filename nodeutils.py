@@ -2,13 +2,14 @@ from hashlib import sha256
 from struct import pack, unpack
 from time import time
 from binascii import hexlify, unhexlify
+from micropython import const
 
 SERVICES = {
-    "NODE_NETWORK": (1 << 0),
-    "NODE_BLOOM": (1 << 2),
-    "NODE_WITNESS": (1 << 3),
-    "NODE_COMPACT_FILTERS": (1 << 6),
-    "NODE_NETWORK_LIMITED": (1 << 10),
+    "NODE_NETWORK": 0x01,
+    "NODE_BLOOM": 0x04,
+    "NODE_WITNESS": 0x08,
+    "NODE_COMPACT_FILTERS": 0x40,
+    "NODE_NETWORK_LIMITED": 0x0400,
 }
 
 
@@ -20,9 +21,12 @@ inv_types = {
 }
 
 
-# https://www.geeksforgeeks.org/python-program-to-swap-keys-and-values-in-dictionary/
-reversed_inv_types = dict([(value, key) for key, value in inv_types.items()])
-
+reversed_inv_types = {
+    'MSG_CMPCT_BLOCK': 0x04,
+    'MSG_FILTERED_BLOCK': 0x03,
+    'MSG_BLOCK': 0x02,
+    'MSG_TX': 0x01
+}
 
 
 def create_header(msg, msg_type):
@@ -44,9 +48,7 @@ def is_header_valid(s):
 
 
 def create_version(int_version, host_port, agent):
-
     selected_services = SERVICES["NODE_NETWORK"]
-    selected_services |= SERVICES["NODE_WITNESS"]
     selected_services |= SERVICES["NODE_NETWORK_LIMITED"]
 
     host, port = host_port
@@ -162,17 +164,17 @@ def parse_invs(s):
     return inv_array
 
 
-def create_getdata(inv_array):
-    s = create_varint(len(inv_array))
+def create_getdata(inv):
+    s = create_varint(1)
+    inv_code = reversed_inv_types[inv["type"]]
 
-    for inv in inv_array:
-        inv_code = reversed_inv_types[inv["type"]]
+    '''
+    # https://github.com/bitcoin/bips/blob/master/bip-0144.mediawiki
+    if inv["type"] in ["MSG_TX", "MSG_BLOCK"]:
+        inv_code += 1 << 30
+    '''
 
-        # https://github.com/bitcoin/bips/blob/master/bip-0144.mediawiki
-        if inv["type"] in ["MSG_TX", "MSG_BLOCK"]:
-            inv_code += 1 << 30
-
-        s += pack("<L", inv_code) + reverse_bytearray(inv["content"])
+    s += pack("<L", inv_code) + reverse_bytearray(inv["content"])
 
     return s
 
